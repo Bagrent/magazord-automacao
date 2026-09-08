@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# SPREADSHEET COLUMN MAPPING
+# ---------------------------------------------------------------------------
+# Maps your Excel column headers onto the pipeline's canonical field names.
+#
+# Matching is forgiving: case, accents, punctuation and extra spaces are all
+# ignored. "Preço de Venda", "PRECO_DE_VENDA" and "preco de venda" all match
+# the alias "preco de venda".
+#
+# If a column in your sheet isn't listed here, add it as an alias -- you do not
+# need to rename anything in the spreadsheet itself.
+# ---------------------------------------------------------------------------
+
+planilha:
+  # Sheet to read. null = the first sheet in the workbook.
+  aba: null
+  # Row containing the headers. null = auto-detect (first row that matches
+  # at least two known aliases, scanning the first 10 rows).
+  linha_cabecalho: null
+  # Rows where the SKU cell is empty are skipped silently rather than reported
+  # as errors -- spacer rows are common in hand-maintained sheets.
+  ignorar_linhas_sem_sku: true
+
+# canonical_field: [accepted headers]
+colunas:
+  sku:
+    [sku, codigo, cod, codigo do produto, referencia, ref, product code]
+  nome:
+    [nome, nome do produto, produto, titulo, descricao do produto, name, title]
+  descricao:
+    [descricao, descricao completa, descricao longa, detalhes, description]
+  descricao_curta:
+    [descricao curta, resumo, short description]
+  ean:
+    [ean, gtin, codigo de barras, codigo barras, barcode, ean13]
+  marca:
+    [marca, fabricante, brand, manufacturer]
+  categoria:
+    [categoria, categorias, departamento, category]
+  preco:
+    [preco, preco de venda, preco venda, valor, valor de venda, price]
+  preco_promocional:
+    [preco promocional, promocao, preco promo, preco de oferta, sale price]
+  custo:
+    [custo, preco de custo, preco custo, cost]
+  estoque:
+    [estoque, quantidade, qtd, qtde, saldo, stock, quantity]
+  peso:
+    [peso, peso kg, peso bruto, weight]
+  altura:
+    [altura, altura cm, height]
+  largura:
+    [largura, largura cm, width]
+  comprimento:
+    [comprimento, profundidade, comprimento cm, length, depth]
+  ncm:
+    [ncm, codigo ncm]
+  ativo:
+    [ativo, status, publicado, ativo no site, active, enabled]
+  sku_pai:
+    [sku pai, codigo pai, produto pai, sku principal, parent sku]
+  variacao_cor:
+    [cor, variacao cor, color]
+  variacao_tamanho:
+    [tamanho, variacao tamanho, size]
+
+# Image columns. Two styles are supported at the same time:
+#
+#   1. Numbered columns  -- "Imagem 1", "Imagem 2", "Foto 3" ...
+#      Any header starting with one of `prefixos_numerados` and ending in a
+#      number is picked up automatically, in numeric order.
+#
+#   2. One delimited column -- a single cell holding several URLs.
+#
+# The first image found becomes the product's main image.
+imagens:
+  prefixos_numerados: [imagem, foto, image, picture, img]
+  colunas_delimitadas: [imagens, fotos, links das imagens, urls das imagens, images]
+  delimitadores: ["\n", ";", "|", ","]
+
+# Values parsed as booleans, for the `ativo` column.
+booleanos:
+  verdadeiro: [sim, s, true, verdadeiro, 1, ativo, publicado, x]
+  falso: [nao, n, false, falso, 0, inativo, despublicado, ""]
+
+# Numbers. Brazilian sheets normally use "1.234,56"; set to "en" for "1,234.56".
+numeros:
+  formato: br

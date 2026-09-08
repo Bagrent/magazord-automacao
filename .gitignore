@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.env
+/saida/
+/cache_imagens/
+/estado.sqlite3
+*.xlsx
+!exemplos/*.xlsx

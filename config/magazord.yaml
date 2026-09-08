@@ -1,0 +1,110 @@
+# ---------------------------------------------------------------------------
+# MAGAZORD API BINDING  --  THE SPEC SEAM
+# ---------------------------------------------------------------------------
+# Every value marked ##VERIFICAR## is a placeholder that was NOT confirmed
+# against the official spec: https://docs.api.magazord.com.br/openapi.yaml
+# (that host is unreachable from the machine this was written on).
+#
+# To go live, open the openapi.yaml and correct the paths + field names below.
+# No Python code needs to change -- this file is the only thing that binds the
+# pipeline to Magazord's actual contract.
+#
+# What IS confirmed: Magazord authenticates with HTTP Basic Auth.
+# ---------------------------------------------------------------------------
+
+base_url: "${MAGAZORD_BASE_URL}"
+
+auth:
+  type: basic          # confirmed
+  user_env: MAGAZORD_USER
+  token_env: MAGAZORD_TOKEN
+
+http:
+  timeout_seconds: 30
+  max_retries: 5
+  backoff_base_seconds: 1.0
+  backoff_max_seconds: 60.0
+  # Minimum seconds between requests. Raise this if you get 429s.
+  min_interval_seconds: 0.2
+  retry_on_status: [408, 425, 429, 500, 502, 503, 504]
+
+endpoints:
+  buscar_produto:                                    ##VERIFICAR##
+    method: GET
+    path: "/site/produto"
+    # Query parameter used to look a product up by its SKU.
+    sku_query_param: "codigo"
+    # Where the list of results lives in the response body. Dotted path.
+    # Empty string means the response body IS the list.
+    results_path: "items"
+    # Where the product id lives inside a single result object.
+    id_field: "id"
+
+  criar_produto:                                     ##VERIFICAR##
+    method: POST
+    path: "/site/produto"
+    id_field: "id"
+
+  atualizar_produto:                                 ##VERIFICAR##
+    method: PUT
+    path: "/site/produto/{id}"
+
+  criar_imagem:                                      ##VERIFICAR##
+    method: POST
+    path: "/site/produto/{id}/imagem"
+
+  atualizar_estoque:                                 ##VERIFICAR##
+    method: PUT
+    path: "/site/produto/{id}/estoque"
+
+  atualizar_preco:                                   ##VERIFICAR##
+    method: PUT
+    path: "/site/produto/{id}/preco"
+
+# How images are attached to a product.
+#   url    -> we send the image URL and Magazord fetches it itself
+#   upload -> we download the image and POST it as multipart/form-data
+imagens:
+  modo: url                                          ##VERIFICAR##
+  campo_url: "url"
+  campo_ordem: "ordem"
+  campo_principal: "principal"
+  campo_arquivo: "arquivo"       # multipart field name, used when modo=upload
+  validar_antes_de_enviar: true  # HEAD each URL to catch 404s before upload
+  extensoes_aceitas: [".jpg", ".jpeg", ".png", ".webp"]
+  tamanho_maximo_mb: 10
+
+# Canonical field name -> key in the Magazord JSON payload.
+# Dots create nested objects: "preco.venda" -> {"preco": {"venda": ...}}
+# Set a value to null to stop sending that field entirely.
+campos:                                              ##VERIFICAR##
+  sku: "codigo"
+  nome: "nome"
+  descricao: "descricao"
+  descricao_curta: "descricaoCurta"
+  ean: "codigoBarras"
+  marca: "marca"
+  categoria: "categoria"
+  preco: "precoVenda"
+  preco_promocional: "precoPromocional"
+  custo: "precoCusto"
+  estoque: "estoque"
+  peso: "peso"
+  altura: "altura"
+  largura: "largura"
+  comprimento: "comprimento"
+  ncm: "ncm"
+  ativo: "ativo"
+  sku_pai: "codigoPai"
+  variacao_cor: "cor"
+  variacao_tamanho: "tamanho"
+
+# Extra columns from the spreadsheet that aren't in `campos` above.
+#   ignorar  -> drop them
+#   raiz     -> send them as top-level keys, using the column header as the key
+#   atributo -> collect them into the list named by `atributos_payload_key`
+extras:
+  modo: ignorar                                      ##VERIFICAR##
+  atributos_payload_key: "atributos"
+  atributo_nome_key: "nome"
+  atributo_valor_key: "valor"
