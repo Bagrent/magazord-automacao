@@ -9,6 +9,8 @@ one at a time.
 magazord validar produtos.xlsx              # check the sheet, no network
 magazord enviar  produtos.xlsx              # dry run: builds every payload, sends nothing
 magazord enviar  produtos.xlsx --confirmar  # actually upload
+
+magazord catalogo ofertas.xlsx              # flip-book catalogue + PDF, no network
 ```
 
 ---
@@ -154,6 +156,152 @@ Each run writes `saida/relatorio-<timestamp>.xlsx`:
 - Blank cells are omitted from the payload rather than sent as empty values,
   so an empty column never wipes data already in the store.
 
+---
+
+# Catálogo folheável
+
+`magazord catalogo` turns a price list -- or a folder of art the designer
+already exported -- into a page-turning catalogue you can send by link, plus
+the same pages as a PDF. It is the offline equivalent of the flip-book
+services: everything is generated locally and the output is plain static
+files, so there is no account, no upload, no watermark and no expiring link.
+
+```bash
+magazord modelo --tipo ofertas              # gera exemplos/modelo_ofertas.xlsx
+magazord catalogo ofertas.xlsx              # monta saida/catalogo/
+```
+
+Open `saida/catalogo/index.html` and it is already a catalogue: two-page spread
+on a computer, one page per swipe on a phone, thumbnails, zoom, full screen,
+share, and a PDF download button.
+
+## Three ways in
+
+| Entrada | Comando | O que acontece |
+|---|---|---|
+| Uma planilha de ofertas | `magazord catalogo ofertas.xlsx` | cada linha vira uma página desenhada com a identidade da loja |
+| Uma pasta com as artes prontas | `magazord catalogo artes/` | as imagens entram **sem alteração nenhuma**, na ordem dos nomes dos arquivos |
+| A planilha de produtos do envio | `magazord catalogo produtos.xlsx --produtos` | os produtos com preço promocional viram páginas |
+
+A planilha de ofertas tem uma linha por página:
+
+| Produto | Preço de | Preço por | Imagem | Selo | Link |
+|---|---|---|---|---|---|
+| Base Liquida Franciny Ehlke Real Filter | 59,99 | 39,99 | `fotos/base.png` | | `https://loja/...` |
+| Gloss Franciny Ehlke Chocochilli | 59,99 | 29,99 | `fotos/gloss.png` | NOVIDADE | |
+
+Só `Produto` é obrigatório. `Imagem` aceita um arquivo ao lado da planilha ou
+um link `https://` (baixado uma vez e guardado em cache). `Link` coloca um
+botão **COMPRAR** na página, levando o cliente direto ao produto na loja.
+Os cabeçalhos são reconhecidos por apelido, então `DE`/`POR`, `Preço
+Promocional` ou `Foto` também funcionam.
+
+## Suas artes não são alteradas
+
+Quando a entrada é uma pasta de artes prontas, o catálogo não redesenha nem
+recomprime nada:
+
+- **Os arquivos de origem nunca são escritos.** O app só lê a pasta de entrada;
+  tudo que ele gera vai para a pasta de saída.
+- **A página do catálogo é uma cópia byte a byte da sua arte.** Um PNG continua
+  PNG, com a mesma resolução, o mesmo peso e o mesmo hash. Nada de virar JPEG.
+- **O tamanho da página vem da arte, não do tema.** Se as suas artes são
+  1080x1350, o catálogo é 1080x1350 -- o `pagina:` do `catalogo.yaml` só vale
+  para as páginas que o app desenha.
+
+```bash
+magazord catalogo artes/
+sha256sum artes/01-base.png saida/catalogo/paginas/pagina-01.png   # iguais
+```
+
+A única situação em que uma arte é reprocessada é quando ela **destoa das
+outras**: o catálogo precisa de páginas de um tamanho só, então uma imagem fora
+do padrão é ajustada -- e mesmo aí ela continua PNG, sem perda, e o app diz no
+log exatamente qual arquivo mexeu e de que tamanho para qual:
+
+```
+INFO  04-fora-do-padrao.png: 800x1000 foi ajustada para 1080x1350, o tamanho
+      de página do catálogo
+```
+
+Para forçar tudo a um tamanho, use `--tamanho 1080x1920`. Para recomprimir
+tudo em JPEG e economizar banda, `--recodificar` -- as duas coisas são opção
+sua, nunca o padrão.
+
+As miniaturas da barra inferior e o PDF são derivados (miniatura pequena em
+JPEG, PDF reduzido para 1400px de largura). Eles não substituem a página: o
+visualizador sempre mostra o arquivo original. `--pdf-largura 0` mantém o PDF
+na resolução cheia.
+
+## A identidade visual fica em um arquivo
+
+`config/catalogo.yaml` define marca, cores, o texto grande da página e o
+rodapé legal. Trocar a campanha é editar esse arquivo e rodar de novo -- nada
+de mexer em código.
+
+```yaml
+marca:
+  nome: "DISK"
+  complemento: "KOSMETHICOS"
+  logo: ""                    # um PNG aqui substitui o texto acima
+cores:
+  fundo_inicio: "#F6A340"
+  destaque: "#F07817"
+pagina:
+  chamada: "PROMOÇÕES"
+```
+
+Para uma campanha pontual, as opções de linha de comando ganham do arquivo:
+
+```bash
+magazord catalogo ofertas.xlsx \
+  --titulo "Ofertas de Setembro" \
+  --subtitulo "Válido enquanto durarem os estoques" \
+  --logo marca/logo.png \
+  --chamada "SÓ HOJE" \
+  --contracapa "Peça pelo WhatsApp (47) 99999-0000"
+```
+
+Flags úteis:
+
+| Flag | Efeito |
+|---|---|
+| `--um-arquivo` | um único `.html` com imagens embutidas -- manda por WhatsApp, abre offline |
+| `--sem-pdf` | não gera o PDF |
+| `--sem-capa` | não gera a capa |
+| `--selo-desconto` | carimba `-33%` calculado a partir dos dois preços |
+| `--limite N` | usa só as N primeiras ofertas, para um teste rápido |
+| `--tamanho LxA` | força o tamanho da página (padrão: o tamanho das próprias artes) |
+| `--recodificar` | recomprime as artes prontas em JPEG (o padrão é não tocar nelas) |
+| `--pdf-largura 0` | mantém o PDF na resolução cheia |
+| `--fotos pasta/` | pasta base das imagens citadas na planilha |
+| `--tema outro.yaml` | outra identidade visual |
+
+## Publicar
+
+A saída é estática. Suba a pasta `saida/catalogo/` em qualquer hospedagem
+(GitHub Pages, Netlify, Vercel, o servidor da própria loja) e o link do
+`index.html` é o catálogo. O endereço aceita `#p=4` para abrir direto numa
+página -- útil para mandar "olha a página 4" no WhatsApp.
+
+Para mandar o catálogo como arquivo, `--um-arquivo` gera um `.html` único que
+funciona sem internet depois de baixado.
+
+## Fontes
+
+As páginas ficam melhores com uma fonte display pesada (Anton, Archivo Black,
+Montserrat ExtraBold). O gerador procura em `assets/fontes/`, em `~/.fonts` e
+nas fontes do sistema, nessa ordem, e cai para a fonte bold do sistema se não
+achar nenhuma. Para fixar uma:
+
+```yaml
+fontes:
+  titulo: "assets/fontes/Anton-Regular.ttf"
+  texto: "assets/fontes/Montserrat-Regular.ttf"
+```
+
+---
+
 ## Tests
 
 ```bash
@@ -179,4 +327,14 @@ src/magazord_automacao/
   pipeline.py             batching, concurrency, dry run, error isolation
   relatorio.py            the .xlsx report
   cli.py                  command line
+  catalogo/
+    tema.py               the visual identity, read from catalogo.yaml
+    oferta.py             one offer -- the content of one page
+    fontes_dados.py       where pages come from: folder, offers sheet, products
+    fontes.py             finding the display and text typefaces
+    arte.py               drawing a page with Pillow
+    pdf.py                the same pages as a PDF
+    flipbook.py           writing the viewer
+    construtor.py         ties it together into one output folder
+    assets/               the viewer itself: html, css, js
 ```

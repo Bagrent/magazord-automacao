@@ -12,7 +12,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "respx>=0.21"]
+# Catalogue generation draws the pages with Pillow. The uploader itself does
+# not need it, so it stays out of the base install.
+catalogo = ["Pillow>=10.0"]
+dev = ["pytest>=8.0", "respx>=0.21", "Pillow>=10.0"]
 
 [project.scripts]
 magazord = "magazord_automacao.cli:main"
@@ -23,6 +26,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+magazord_automacao = ["catalogo/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
