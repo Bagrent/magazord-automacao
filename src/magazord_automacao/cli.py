@@ -99,6 +99,14 @@ def cmd_catalogo(args: argparse.Namespace) -> int:
         print(f"{len(fonte)} oferta(s) lidas de {entrada}.")
 
     tema = Tema.carregar(args.tema, titulo=args.titulo, subtitulo=args.subtitulo)
+    if args.tamanho:
+        try:
+            largura, altura = (int(v) for v in args.tamanho.lower().split("x"))
+        except ValueError:
+            print(f"erro: --tamanho espera algo como 1080x1920, veio {args.tamanho!r}",
+                  file=sys.stderr)
+            return 2
+        tema.largura, tema.altura = largura, altura
     if args.marca:
         tema.marca_nome = args.marca
     if args.logo:
@@ -117,6 +125,9 @@ def cmd_catalogo(args: argparse.Namespace) -> int:
         qualidade=args.qualidade,
         limite=args.limite,
         rotulo_link=args.rotulo_link,
+        preservar_originais=not args.recodificar,
+        pdf_largura=args.pdf_largura,
+        tamanho_da_arte=not args.tamanho,
     )
 
     resultado = construir(fonte, tema, opcoes)
@@ -289,7 +300,15 @@ def construir_parser() -> argparse.ArgumentParser:
                    help="carimba o percentual de desconto em cada página")
     c.add_argument("--rotulo-link", default="Comprar",
                    help="texto do botão nas páginas que têm link")
-    c.add_argument("--qualidade", type=int, default=88, help="qualidade do JPEG (1-95)")
+    c.add_argument("--qualidade", type=int, default=88,
+                   help="qualidade do JPEG das páginas desenhadas (1-95)")
+    c.add_argument("--recodificar", action="store_true",
+                   help="recomprime as artes prontas em JPEG; sem esta flag elas "
+                        "entram no catálogo exatamente como estão")
+    c.add_argument("--tamanho", default=None, metavar="LxA",
+                   help="força o tamanho da página (padrão: o tamanho das próprias artes)")
+    c.add_argument("--pdf-largura", type=int, default=1400, metavar="PX",
+                   help="largura das páginas dentro do PDF; 0 mantém a resolução cheia")
     c.add_argument("--limite", type=int, default=None, help="usa no máximo N ofertas")
     c.add_argument("--fotos", type=Path, default=None,
                    help="pasta base das imagens citadas na planilha")

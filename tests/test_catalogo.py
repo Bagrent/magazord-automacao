@@ -211,3 +211,92 @@ def test_fonte_vazia_e_recusada_com_clareza(tema):
 def test_pdf_sem_paginas_e_recusado(tmp_path):
     with pytest.raises(ValueError):
         pdf_mod.gerar([], tmp_path / "x.pdf")
+
+
+# -- fidelity of finished art ----------------------------------------------
+
+def _sha(caminho: Path) -> str:
+    import hashlib
+    return hashlib.sha256(caminho.read_bytes()).hexdigest()
+
+
+def _artes(pasta: Path, tamanho: tuple[int, int], quantas: int = 2) -> list[Path]:
+    pasta.mkdir(parents=True, exist_ok=True)
+    feitas = []
+    for i in range(1, quantas + 1):
+        caminho = pasta / f"{i:02d}-arte.png"
+        Image.new("RGB", tamanho, (240, 120 + i * 10, 30)).save(caminho)
+        feitas.append(caminho)
+    return feitas
+
+
+def test_arte_pronta_entra_no_catalogo_byte_a_byte(tmp_path, tema):
+    artes = _artes(tmp_path / "artes", tema.tamanho)
+
+    resultado = construir(de_pasta(tmp_path / "artes"), tema, Opcoes(saida=tmp_path / "c"))
+
+    assert [p.suffix for p in resultado.paginas] == [".png", ".png"]
+    assert [_sha(p) for p in resultado.paginas] == [_sha(a) for a in artes]
+
+
+def test_o_arquivo_de_origem_nunca_e_tocado(tmp_path, tema):
+    artes = _artes(tmp_path / "artes", (600, 800))          # de propósito fora do tamanho
+    antes = {a: (_sha(a), a.stat().st_size) for a in artes}
+
+    construir(de_pasta(tmp_path / "artes"), tema, Opcoes(saida=tmp_path / "c"))
+
+    assert {a: (_sha(a), a.stat().st_size) for a in artes} == antes
+
+
+def test_a_arte_e_quem_manda_no_tamanho_da_pagina(tmp_path, tema):
+    """O tema pede 270x480; as artes são 300x400 e devem passar sem redimensionar."""
+    artes = _artes(tmp_path / "artes", (300, 400))
+
+    resultado = construir(de_pasta(tmp_path / "artes"), tema, Opcoes(saida=tmp_path / "c"))
+
+    assert Image.open(resultado.paginas[0]).size == (300, 400)
+    assert [_sha(p) for p in resultado.paginas] == [_sha(a) for a in artes]
+    # e o visualizador tem que saber a proporção nova, não a do tema
+    html = resultado.html.read_text(encoding="utf-8")
+    assert json.loads(re.search(r"window\.CATALOGO = (\{.*?\});", html, re.S).group(1))[
+        "proporcao"] == pytest.approx(300 / 400)
+
+
+def test_arte_fora_do_tamanho_e_ajustada_mas_continua_sem_perda(tmp_path, tema):
+    artes = tmp_path / "artes"
+    _artes(artes, (300, 400), quantas=2)                     # o tamanho dominante
+    Image.new("RGB", (150, 200), (0, 0, 0)).save(artes / "03-menor.png")
+
+    resultado = construir(de_pasta(artes), tema, Opcoes(saida=tmp_path / "c"))
+
+    assert [p.name for p in resultado.paginas][2] == "pagina-03.png"   # não virou JPEG
+    assert all(Image.open(p).size == (300, 400) for p in resultado.paginas)
+
+
+def test_recodificar_e_uma_escolha_explicita(tmp_path, tema):
+    _artes(tmp_path / "artes", tema.tamanho, quantas=1)
+
+    resultado = construir(de_pasta(tmp_path / "artes"), tema,
+                          Opcoes(saida=tmp_path / "c", preservar_originais=False))
+
+    assert resultado.paginas[0].suffix == ".jpg"
+
+
+def test_rodar_de_novo_nao_mistura_paginas_de_formatos_diferentes(tmp_path, tema, foto):
+    saida = tmp_path / "c"
+    _artes(tmp_path / "artes", tema.tamanho, quantas=3)
+    construir(de_pasta(tmp_path / "artes"), tema, Opcoes(saida=saida))
+
+    resultado = construir([Oferta("Só um", imagem=foto)], tema, Opcoes(saida=saida, capa=False))
+
+    assert [p.name for p in (saida / "paginas").iterdir()] == ["pagina-01.jpg"]
+    assert resultado.total == 1
+
+
+def test_pdf_pode_manter_a_resolucao_cheia(tmp_path, tema, foto):
+    grande = construir([Oferta("A", imagem=foto)], tema,
+                       Opcoes(saida=tmp_path / "g", capa=False, pdf_largura=0))
+    reduzido = construir([Oferta("A", imagem=foto)], tema,
+                         Opcoes(saida=tmp_path / "r", capa=False, pdf_largura=80))
+
+    assert grande.pdf.stat().st_size > reduzido.pdf.stat().st_size

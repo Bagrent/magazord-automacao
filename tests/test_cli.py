@@ -131,7 +131,23 @@ def test_catalogo_aceita_uma_pasta_de_artes_prontas(tmp_path):
 
     assert main(["catalogo", str(artes), "--saida", str(tmp_path / "c"), "--sem-pdf"]) == 0
     assert not (tmp_path / "c" / "catalogo.pdf").exists()
-    assert len(list((tmp_path / "c" / "paginas").glob("*.jpg"))) == 2
+    # A arte pronta entra como está: PNG continua PNG, sem passar pelo JPEG.
+    paginas = sorted((tmp_path / "c" / "paginas").iterdir())
+    assert [p.name for p in paginas] == ["pagina-01.png", "pagina-02.png"]
+    assert paginas[0].read_bytes() == (artes / "01.png").read_bytes()
+
+
+def test_catalogo_pode_recodificar_quando_pedido(tmp_path):
+    pytest.importorskip("PIL", reason="o catálogo depende do Pillow")
+    from PIL import Image
+
+    artes = tmp_path / "artes"
+    artes.mkdir()
+    Image.new("RGB", (216, 384), (200, 120, 30)).save(artes / "01.png")
+
+    assert main(["catalogo", str(artes), "--saida", str(tmp_path / "c"),
+                 "--sem-pdf", "--recodificar"]) == 0
+    assert [p.name for p in (tmp_path / "c" / "paginas").iterdir()] == ["pagina-01.jpg"]
 
 
 def test_catalogo_avisa_quando_a_entrada_nao_existe(tmp_path, capsys):

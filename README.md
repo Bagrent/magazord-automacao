@@ -180,7 +180,7 @@ share, and a PDF download button.
 | Entrada | Comando | O que acontece |
 |---|---|---|
 | Uma planilha de ofertas | `magazord catalogo ofertas.xlsx` | cada linha vira uma página desenhada com a identidade da loja |
-| Uma pasta com as artes prontas | `magazord catalogo artes/` | as imagens entram na ordem dos nomes dos arquivos, só ajustadas ao tamanho da página |
+| Uma pasta com as artes prontas | `magazord catalogo artes/` | as imagens entram **sem alteração nenhuma**, na ordem dos nomes dos arquivos |
 | A planilha de produtos do envio | `magazord catalogo produtos.xlsx --produtos` | os produtos com preço promocional viram páginas |
 
 A planilha de ofertas tem uma linha por página:
@@ -195,6 +195,43 @@ um link `https://` (baixado uma vez e guardado em cache). `Link` coloca um
 botão **COMPRAR** na página, levando o cliente direto ao produto na loja.
 Os cabeçalhos são reconhecidos por apelido, então `DE`/`POR`, `Preço
 Promocional` ou `Foto` também funcionam.
+
+## Suas artes não são alteradas
+
+Quando a entrada é uma pasta de artes prontas, o catálogo não redesenha nem
+recomprime nada:
+
+- **Os arquivos de origem nunca são escritos.** O app só lê a pasta de entrada;
+  tudo que ele gera vai para a pasta de saída.
+- **A página do catálogo é uma cópia byte a byte da sua arte.** Um PNG continua
+  PNG, com a mesma resolução, o mesmo peso e o mesmo hash. Nada de virar JPEG.
+- **O tamanho da página vem da arte, não do tema.** Se as suas artes são
+  1080x1350, o catálogo é 1080x1350 -- o `pagina:` do `catalogo.yaml` só vale
+  para as páginas que o app desenha.
+
+```bash
+magazord catalogo artes/
+sha256sum artes/01-base.png saida/catalogo/paginas/pagina-01.png   # iguais
+```
+
+A única situação em que uma arte é reprocessada é quando ela **destoa das
+outras**: o catálogo precisa de páginas de um tamanho só, então uma imagem fora
+do padrão é ajustada -- e mesmo aí ela continua PNG, sem perda, e o app diz no
+log exatamente qual arquivo mexeu e de que tamanho para qual:
+
+```
+INFO  04-fora-do-padrao.png: 800x1000 foi ajustada para 1080x1350, o tamanho
+      de página do catálogo
+```
+
+Para forçar tudo a um tamanho, use `--tamanho 1080x1920`. Para recomprimir
+tudo em JPEG e economizar banda, `--recodificar` -- as duas coisas são opção
+sua, nunca o padrão.
+
+As miniaturas da barra inferior e o PDF são derivados (miniatura pequena em
+JPEG, PDF reduzido para 1400px de largura). Eles não substituem a página: o
+visualizador sempre mostra o arquivo original. `--pdf-largura 0` mantém o PDF
+na resolução cheia.
 
 ## A identidade visual fica em um arquivo
 
@@ -234,6 +271,9 @@ Flags úteis:
 | `--sem-capa` | não gera a capa |
 | `--selo-desconto` | carimba `-33%` calculado a partir dos dois preços |
 | `--limite N` | usa só as N primeiras ofertas, para um teste rápido |
+| `--tamanho LxA` | força o tamanho da página (padrão: o tamanho das próprias artes) |
+| `--recodificar` | recomprime as artes prontas em JPEG (o padrão é não tocar nelas) |
+| `--pdf-largura 0` | mantém o PDF na resolução cheia |
 | `--fotos pasta/` | pasta base das imagens citadas na planilha |
 | `--tema outro.yaml` | outra identidade visual |
 
