@@ -87,7 +87,20 @@ def cmd_catalogo(args: argparse.Namespace) -> int:
         print(f"erro: não encontrei {entrada}", file=sys.stderr)
         return 2
 
+    saida = Path(args.saida)
     if entrada.is_dir():
+        # Writing the pages inside the art folder would make the next run read
+        # its own output back as if it were new art.
+        try:
+            dentro = saida.resolve().is_relative_to(entrada.resolve())
+        except OSError:
+            dentro = False
+        if dentro:
+            print(f"erro: --saida ({saida}) está dentro da pasta das artes ({entrada}).\n"
+                  f"      Na próxima execução as páginas geradas entrariam como arte nova.\n"
+                  f"      Escolha uma pasta de saída fora, por exemplo: "
+                  f'"{entrada.parent / (entrada.name + " - catalogo")}"', file=sys.stderr)
+            return 2
         fonte: list = de_pasta(entrada)
         print(f"{len(fonte)} imagem(ns) em {entrada}, na ordem dos nomes dos arquivos.")
     elif args.produtos:
@@ -115,7 +128,7 @@ def cmd_catalogo(args: argparse.Namespace) -> int:
         tema.chamada = args.chamada
 
     opcoes = Opcoes(
-        saida=Path(args.saida),
+        saida=saida,
         capa=not args.sem_capa,
         capa_imagem=Path(args.capa) if args.capa else None,
         contracapa=args.contracapa,

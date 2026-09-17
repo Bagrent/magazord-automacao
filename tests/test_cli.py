@@ -159,3 +159,16 @@ def test_modelo_de_ofertas_sai_no_formato_do_catalogo(tmp_path, capsys):
     destino = tmp_path / "modelo.xlsx"
     assert main(["modelo", "--tipo", "ofertas", "--destino", str(destino)]) == 0
     assert "Produto" in [c.value for c in load_workbook(destino).active[1]]
+
+
+def test_catalogo_recusa_gravar_dentro_da_pasta_das_artes(tmp_path, capsys):
+    pytest.importorskip("PIL", reason="o catálogo depende do Pillow")
+    from PIL import Image
+
+    artes = tmp_path / "artes"
+    artes.mkdir()
+    Image.new("RGB", (216, 384), (200, 120, 30)).save(artes / "01.png")
+
+    assert main(["catalogo", str(artes), "--saida", str(artes / "catalogo")]) == 2
+    assert "dentro da pasta das artes" in capsys.readouterr().err
+    assert not (artes / "catalogo").exists()
