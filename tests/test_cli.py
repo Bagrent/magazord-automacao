@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import httpx
+import pytest
 import respx
 from openpyxl import Workbook, load_workbook
 
@@ -90,3 +91,55 @@ def test_enviar_sem_credenciais_para_antes(tmp_path, api_config, base, monkeypat
                    "--estado", str(tmp_path / "e.sqlite3")])
     assert codigo == 2
     assert "credenciais ausentes" in capsys.readouterr().err
+
+
+# -- catálogo ---------------------------------------------------------------
+
+def _ofertas(tmp_path):
+    wb = Workbook()
+    wb.active.append(["Produto", "Preço de", "Preço por", "Imagem"])
+    wb.active.append(["Base Real Filter", "59,90", "39,90", ""])
+    wb.active.append(["Gloss Chocochilli", "59,90", "29,90", ""])
+    caminho = tmp_path / "ofertas.xlsx"
+    wb.save(caminho)
+    return caminho
+
+
+def test_catalogo_monta_flipbook_e_pdf(tmp_path, capsys):
+    pytest.importorskip("PIL", reason="o catálogo depende do Pillow")
+    saida = tmp_path / "catalogo"
+
+    codigo = main(["catalogo", str(_ofertas(tmp_path)), "--saida", str(saida),
+                   "--titulo", "Promoções de Setembro"])
+
+    assert codigo == 0
+    assert (saida / "index.html").exists()
+    assert (saida / "catalogo.pdf").exists()
+    assert len(list((saida / "paginas").glob("*.jpg"))) == 3      # capa + 2 ofertas
+    saida_texto = capsys.readouterr().out
+    assert "2 oferta(s)" in saida_texto and "3 página(s)" in saida_texto
+
+
+def test_catalogo_aceita_uma_pasta_de_artes_prontas(tmp_path):
+    pytest.importorskip("PIL", reason="o catálogo depende do Pillow")
+    from PIL import Image
+
+    artes = tmp_path / "artes"
+    artes.mkdir()
+    for i in (2, 1):                                   # fora de ordem de propósito
+        Image.new("RGB", (216, 384), (40 * i, 30, 20)).save(artes / f"{i:02d}.png")
+
+    assert main(["catalogo", str(artes), "--saida", str(tmp_path / "c"), "--sem-pdf"]) == 0
+    assert not (tmp_path / "c" / "catalogo.pdf").exists()
+    assert len(list((tmp_path / "c" / "paginas").glob("*.jpg"))) == 2
+
+
+def test_catalogo_avisa_quando_a_entrada_nao_existe(tmp_path, capsys):
+    assert main(["catalogo", str(tmp_path / "nao-existe.xlsx")]) == 2
+    assert "não encontrei" in capsys.readouterr().err
+
+
+def test_modelo_de_ofertas_sai_no_formato_do_catalogo(tmp_path, capsys):
+    destino = tmp_path / "modelo.xlsx"
+    assert main(["modelo", "--tipo", "ofertas", "--destino", str(destino)]) == 0
+    assert "Produto" in [c.value for c in load_workbook(destino).active[1]]

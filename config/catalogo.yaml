@@ -1,0 +1,43 @@
+# Visual identity of the generated catalogue.
+#
+# Every value here is read by `magazord catalogo`. Change it and re-run --
+# no Python edits needed. Colours are hex; sizes are in pixels of the page.
+
+titulo: "Catálogo de Promoções"
+subtitulo: "Confira nossas ofertas"
+
+marca:
+  # Drawn at the top of every page when `logo` is empty.
+  nome: "DISK"
+  complemento: "KOSMETHICOS"
+  # Path to a PNG with transparency -- takes the place of the text above.
+  logo: ""
+
+pagina:
+  largura: 1080
+  altura: 1920
+  # Headline printed above the product on every offer page.
+  chamada: "PROMOÇÕES"
+
+cores:
+  fundo_inicio: "#F6A340"      # top of the background gradient
+  fundo_fim: "#EC7A18"         # bottom of the background gradient
+  arco: "#A23B10"              # the dark dome behind the product
+  destaque: "#F07817"          # "PROMOÇÕES" and the new price
+  texto: "#FFFFFF"
+  contorno: "#FFFFFF"          # outline around headline and prices
+  preco_antigo: "#111111"
+
+rodape:
+  - "Imagens meramente ilustrativas."
+  - "Promoção válida enquanto durarem os estoques."
+
+rotulos:
+  preco_de: "DE: R$"
+  preco_por: "POR:"
+
+# Optional: a heavier display font and a text font. Leave empty to let the
+# generator pick the best it finds installed (see catalogo/fontes.py).
+fontes:
+  titulo: ""
+  texto: ""

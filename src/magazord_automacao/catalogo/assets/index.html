@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{TITULO}}</title>
+<meta name="description" content="{{DESCRICAO}}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{TITULO}}">
+<meta property="og:description" content="{{DESCRICAO}}">
+<meta property="og:image" content="{{CAPA}}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="{{ACENTO}}">
+<link rel="icon" href="{{FAVICON}}">
+{{ESTILO}}
+</head>
+<body>
+
+<header class="topo">
+  <h1>{{TITULO}}</h1>
+  <span class="selo">{{SELO}}</span>
+  <span class="espaco"></span>
+  <span class="dica">Arraste ou use as setas ←/→</span>
+</header>
+
+<main class="palco" id="palco">
+  <button class="seta esq" type="button" data-acao="anterior" aria-label="Página anterior">‹</button>
+  <div class="livro" id="livro" role="region" aria-label="Catálogo"></div>
+  <button class="seta dir" type="button" data-acao="proxima" aria-label="Próxima página">›</button>
+</main>
+
+<nav class="miniaturas" id="miniaturas" aria-label="Miniaturas das páginas"></nav>
+
+<footer class="barra">
+  <button class="botao" type="button" data-acao="primeira" title="Primeira página" aria-label="Primeira página">
+    <svg viewBox="0 0 24 24"><path d="M18 6 10 12l8 6M6 5v14"/></svg>
+  </button>
+  <button class="botao" type="button" data-acao="anterior" title="Anterior" aria-label="Página anterior">
+    <svg viewBox="0 0 24 24"><path d="M15 5 8 12l7 7"/></svg>
+  </button>
+
+  <span class="contador">
+    <input id="campo-pagina" type="number" min="1" value="1" aria-label="Ir para a página">
+    <span>/ <b id="total-paginas">0</b></span>
+  </span>
+
+  <button class="botao" type="button" data-acao="proxima" title="Próxima" aria-label="Próxima página">
+    <svg viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></svg>
+  </button>
+  <button class="botao" type="button" data-acao="ultima" title="Última página" aria-label="Última página">
+    <svg viewBox="0 0 24 24"><path d="m6 6 8 6-8 6M18 5v14"/></svg>
+  </button>
+
+  <span class="separador"></span>
+
+  <button class="botao" type="button" data-acao="miniaturas" title="Miniaturas" aria-label="Miniaturas">
+    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="7" rx="1.5"/><rect x="14" y="4" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+  </button>
+  <button class="botao" type="button" data-acao="zoom" title="Ampliar (duplo clique na página)" aria-label="Ampliar">
+    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2M8.5 11h5M11 8.5v5"/></svg>
+  </button>
+  <button class="botao" type="button" data-acao="tela-cheia" title="Tela cheia (F)" aria-label="Tela cheia">
+    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+  </button>
+  <button class="botao" type="button" data-acao="compartilhar" title="Compartilhar" aria-label="Compartilhar">
+    <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="m8.4 10.8 7.2-4.2M8.4 13.2l7.2 4.2"/></svg>
+  </button>
+  {{BOTAO_PDF}}
+</footer>
+
+<div class="aviso" id="aviso" role="status" aria-live="polite"></div>
+
+<script>window.CATALOGO = {{DADOS}};</script>
+{{SCRIPT}}
+</body>
+</html>

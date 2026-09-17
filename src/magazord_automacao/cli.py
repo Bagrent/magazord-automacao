@@ -5,6 +5,7 @@
     magazord enviar   produtos.xlsx      simula o envio (padrão seguro)
     magazord enviar   produtos.xlsx --confirmar    envia de verdade
     magazord estado                      mostra o que já foi enviado
+    magazord catalogo ofertas.xlsx       monta o catálogo folheável + PDF
 """
 
 from __future__ import annotations
@@ -56,11 +57,80 @@ def _mostrar_erros(erros) -> None:
 # -- commands ---------------------------------------------------------------
 
 def cmd_modelo(args: argparse.Namespace) -> int:
+    if args.tipo == "ofertas":
+        from .catalogo.modelo_ofertas import gerar
+
+        destino = gerar(Path(args.destino or "exemplos/modelo_ofertas.xlsx"))
+        print(f"modelo gerado: {destino}")
+        print("Uma linha por oferta. Passe o arquivo para 'magazord catalogo'.")
+        return 0
+
     from .modelo import gerar
 
-    destino = gerar(Path(args.destino))
+    destino = gerar(Path(args.destino or "exemplos/modelo_produtos.xlsx"))
     print(f"modelo gerado: {destino}")
     print("Preencha uma linha por SKU. As colunas 'Imagem 1..N' recebem links públicos.")
+    return 0
+
+
+def cmd_catalogo(args: argparse.Namespace) -> int:
+    """Build the flipbook catalogue from art, an offers sheet, or the product sheet."""
+    try:
+        from .catalogo import Opcoes, Tema, construir, de_pasta, de_planilha, de_produtos
+    except ImportError as exc:                    # Pillow is an optional extra
+        print(f"erro: o catálogo precisa do Pillow ({exc}).\n"
+              f'      instale com: pip install -e ".[catalogo]"', file=sys.stderr)
+        return 2
+
+    entrada = Path(args.entrada)
+    if not entrada.exists():
+        print(f"erro: não encontrei {entrada}", file=sys.stderr)
+        return 2
+
+    if entrada.is_dir():
+        fonte: list = de_pasta(entrada)
+        print(f"{len(fonte)} imagem(ns) em {entrada}, na ordem dos nomes dos arquivos.")
+    elif args.produtos:
+        fonte = de_produtos(entrada, carregar_mapeamento(args.mapeamento),
+                            somente_promocao=not args.todos)
+        print(f"{len(fonte)} produto(s) da planilha viraram páginas.")
+    else:
+        fonte = de_planilha(entrada, args.fotos)
+        print(f"{len(fonte)} oferta(s) lidas de {entrada}.")
+
+    tema = Tema.carregar(args.tema, titulo=args.titulo, subtitulo=args.subtitulo)
+    if args.marca:
+        tema.marca_nome = args.marca
+    if args.logo:
+        tema.logo = Path(args.logo)
+    if args.chamada is not None:
+        tema.chamada = args.chamada
+
+    opcoes = Opcoes(
+        saida=Path(args.saida),
+        capa=not args.sem_capa,
+        capa_imagem=Path(args.capa) if args.capa else None,
+        contracapa=args.contracapa,
+        um_arquivo=args.um_arquivo,
+        gerar_pdf=not args.sem_pdf,
+        selo_desconto=args.selo_desconto,
+        qualidade=args.qualidade,
+        limite=args.limite,
+        rotulo_link=args.rotulo_link,
+    )
+
+    resultado = construir(fonte, tema, opcoes)
+
+    print(f"\n{resultado.total} página(s) em {resultado.segundos:.1f}s")
+    print(f"  folhear:  {resultado.html}")
+    if resultado.pdf:
+        print(f"  PDF:      {resultado.pdf}")
+    if not opcoes.um_arquivo:
+        print(f"  imagens:  {resultado.pasta / 'paginas'}")
+        print("\nPara publicar, suba a pasta inteira em qualquer hospedagem estática "
+              "(GitHub Pages, Netlify, o servidor da loja) e compartilhe o link do index.html.")
+    else:
+        print("\nArquivo único: dá para mandar por e-mail ou WhatsApp e abre offline.")
     return 0
 
 
@@ -164,7 +234,9 @@ def construir_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="comando", required=True)
 
     m = sub.add_parser("modelo", help="gera uma planilha de exemplo no formato esperado")
-    m.add_argument("--destino", default="exemplos/modelo_produtos.xlsx")
+    m.add_argument("--tipo", choices=["produtos", "ofertas"], default="produtos",
+                   help="produtos: planilha de envio; ofertas: planilha do catálogo")
+    m.add_argument("--destino", default=None)
     m.set_defaults(func=cmd_modelo)
 
     v = sub.add_parser("validar", help="lê e critica a planilha, sem acessar a rede")
@@ -193,6 +265,42 @@ def construir_parser() -> argparse.ArgumentParser:
     e.add_argument("--relatorio", default=None)
     e.set_defaults(func=cmd_enviar)
 
+    c = sub.add_parser(
+        "catalogo",
+        help="monta um catálogo folheável (HTML) e um PDF",
+        description="A entrada pode ser uma pasta com as artes prontas, uma planilha "
+                    "de ofertas, ou a própria planilha de produtos (com --produtos).",
+    )
+    c.add_argument("entrada", help="pasta de imagens, planilha de ofertas (.xlsx/.csv)")
+    c.add_argument("--saida", default="saida/catalogo", help="pasta de destino")
+    c.add_argument("--titulo", default=None, help="título do catálogo")
+    c.add_argument("--subtitulo", default=None, help="linha de apoio na capa")
+    c.add_argument("--marca", default=None, help="nome da loja no topo das páginas")
+    c.add_argument("--logo", default=None, help="PNG com transparência, no lugar do nome")
+    c.add_argument("--chamada", default=None,
+                   help="texto grande da página (padrão: PROMOÇÕES)")
+    c.add_argument("--capa", default=None, help="imagem de produto para a capa")
+    c.add_argument("--sem-capa", action="store_true", help="não gera a capa")
+    c.add_argument("--contracapa", default=None, help="texto da última página")
+    c.add_argument("--um-arquivo", action="store_true",
+                   help="gera um único .html com tudo embutido")
+    c.add_argument("--sem-pdf", action="store_true", help="não gera o PDF")
+    c.add_argument("--selo-desconto", action="store_true",
+                   help="carimba o percentual de desconto em cada página")
+    c.add_argument("--rotulo-link", default="Comprar",
+                   help="texto do botão nas páginas que têm link")
+    c.add_argument("--qualidade", type=int, default=88, help="qualidade do JPEG (1-95)")
+    c.add_argument("--limite", type=int, default=None, help="usa no máximo N ofertas")
+    c.add_argument("--fotos", type=Path, default=None,
+                   help="pasta base das imagens citadas na planilha")
+    c.add_argument("--produtos", action="store_true",
+                   help="a entrada é a planilha de produtos do envio, não de ofertas")
+    c.add_argument("--todos", action="store_true",
+                   help="com --produtos, inclui também quem não tem preço promocional")
+    c.add_argument("--tema", type=Path, default=None, help="outro config/catalogo.yaml")
+    c.add_argument("--mapeamento", type=Path, default=None)
+    c.set_defaults(func=cmd_catalogo)
+
     s = sub.add_parser("estado", help="mostra o que já foi enviado desta máquina")
     s.add_argument("--estado", default="estado.sqlite3")
     s.add_argument("--limite", type=int, default=50)
@@ -208,7 +316,8 @@ def main(argv: list[str] | None = None) -> int:
     _configurar_log(args.verboso)
     try:
         return int(args.func(args))
-    except (ConfigInvalida, PlanilhaInvalida, MagazordError) as exc:
+    except (ConfigInvalida, PlanilhaInvalida, MagazordError, ValueError,
+            FileNotFoundError, NotADirectoryError) as exc:
         print(f"erro: {exc}", file=sys.stderr)
         return 2
     except KeyboardInterrupt:

@@ -7,6 +7,7 @@ venv/
 .env
 /saida/
 /cache_imagens/
+.cache_catalogo/
 /estado.sqlite3
 *.xlsx
 !exemplos/*.xlsx

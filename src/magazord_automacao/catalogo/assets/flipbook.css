@@ -1,0 +1,348 @@
+/* Flipbook viewer.
+   Two layouts from one DOM: a two-page spread on wide screens, a single page
+   on phones. The page turn is a CSS 3D rotation of a leaf around its spine;
+   JavaScript only toggles a class and manages stacking order. */
+
+:root {
+  --acento: #F07817;
+  --fundo: #16100c;
+  --fundo-alto: #241913;
+  --tinta: #f6efe9;
+  --tinta-fraca: #b9a99c;
+  --barra: rgba(28, 19, 14, .92);
+  --borda: rgba(255, 255, 255, .12);
+  --sombra: 0 24px 60px rgba(0, 0, 0, .55);
+  --raio: 14px;
+  --barra-altura: 62px;
+  --duracao: .68s;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--fundo);
+  color: var(--tinta);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  /* A warm pool of light behind the book, like a table lamp. */
+  background:
+    radial-gradient(120% 90% at 50% 12%, var(--fundo-alto) 0%, var(--fundo) 62%) fixed;
+}
+
+/* -- top bar ------------------------------------------------------------- */
+
+.topo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--tinta-fraca);
+  border-bottom: 1px solid var(--borda);
+  flex: 0 0 auto;
+}
+.topo h1 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  color: var(--tinta);
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topo .selo {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--acento);
+  border: 1px solid var(--acento);
+  border-radius: 999px;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.topo .espaco { flex: 1; }
+.topo .dica { font-size: 12px; color: var(--tinta-fraca); white-space: nowrap; }
+
+/* -- stage --------------------------------------------------------------- */
+
+.palco {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  padding: 18px 56px;
+  overflow: auto;
+  touch-action: pan-y pinch-zoom;
+}
+.palco.arrastando { cursor: grabbing; }
+
+.livro {
+  position: relative;
+  perspective: 2600px;
+  transition: transform var(--duracao) cubic-bezier(.22, .68, .3, 1);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.livro.fechado { transform: translateX(-25%) scale(var(--zoom, 1)); }
+.livro.aberto  { transform: translateX(0)    scale(var(--zoom, 1)); }
+.livro.final   { transform: translateX(25%)  scale(var(--zoom, 1)); }
+.livro.solo.fechado, .livro.solo.aberto, .livro.solo.final {
+  transform: scale(var(--zoom, 1));
+}
+.livro.sem-animacao, .livro.sem-animacao .folha { transition: none !important; }
+
+/* The spine shadow, painted under the leaves. */
+.livro::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 46px;
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(0, 0, 0, .38), transparent);
+  pointer-events: none;
+  opacity: .9;
+  z-index: 60;
+}
+.livro.solo::after { display: none; }
+
+.folha {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 50%;
+  height: 100%;
+  transform-origin: left center;
+  transform-style: preserve-3d;
+  transition: transform var(--duracao) cubic-bezier(.4, .08, .28, 1);
+  will-change: transform;
+}
+.livro.solo .folha { left: 0; width: 100%; }
+.folha.virada { transform: rotateY(-180deg); }
+
+.face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  overflow: hidden;
+  background: #120d0a;
+  box-shadow: var(--sombra);
+}
+.face.verso { transform: rotateY(180deg); }
+.face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* The gutter darkening that makes a flat image read as a bound page. */
+.face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, rgba(0, 0, 0, .30), transparent 9%);
+}
+.face.verso::after { background: linear-gradient(270deg, rgba(0, 0, 0, .30), transparent 9%); }
+.livro.solo .face::after { background: none; }
+
+.face.vazia { background: #1b1410; box-shadow: none; }
+.face.vazia::after { background: none; }
+
+/* Optional call-to-action pinned to a page that carries a link. */
+.face .acao {
+  position: absolute;
+  left: 50%;
+  bottom: 5.5%;
+  transform: translateX(-50%);
+  background: var(--acento);
+  color: #fff;
+  font-weight: 700;
+  font-size: clamp(11px, 1.5vw, 15px);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-decoration: none;
+  padding: 10px 22px;
+  border-radius: 999px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .45);
+  z-index: 3;
+}
+.face .acao:hover { filter: brightness(1.08); }
+
+/* -- side arrows --------------------------------------------------------- */
+
+.seta {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid var(--borda);
+  background: rgba(20, 14, 10, .72);
+  color: var(--tinta);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  z-index: 70;
+  transition: background .18s, opacity .18s;
+}
+.seta:hover { background: var(--acento); border-color: var(--acento); }
+.seta[disabled] { opacity: .25; cursor: default; }
+.seta[disabled]:hover { background: rgba(20, 14, 10, .72); border-color: var(--borda); }
+.seta.esq { left: 10px; }
+.seta.dir { right: 10px; }
+
+/* -- bottom bar ---------------------------------------------------------- */
+
+.barra {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 12px;
+  min-height: var(--barra-altura);
+  background: var(--barra);
+  border-top: 1px solid var(--borda);
+  backdrop-filter: blur(8px);
+}
+
+.botao {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--tinta);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .16s, color .16s;
+}
+.botao:hover { background: rgba(255, 255, 255, .10); }
+.botao[disabled] { opacity: .3; cursor: default; }
+.botao[disabled]:hover { background: transparent; }
+.botao.ativo { background: var(--acento); color: #fff; }
+.botao svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9;
+             stroke-linecap: round; stroke-linejoin: round; }
+
+.contador {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: var(--tinta-fraca);
+  padding: 0 6px;
+  white-space: nowrap;
+}
+.contador input {
+  width: 46px;
+  text-align: center;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid var(--borda);
+  border-radius: 8px;
+  color: var(--tinta);
+  font: inherit;
+  padding: 5px 4px;
+}
+.contador input:focus { outline: 2px solid var(--acento); outline-offset: 1px; }
+
+.separador { width: 1px; height: 26px; background: var(--borda); margin: 0 6px; }
+
+/* -- thumbnails ---------------------------------------------------------- */
+
+.miniaturas {
+  flex: 0 0 auto;
+  display: none;
+  gap: 10px;
+  padding: 12px 14px;
+  overflow-x: auto;
+  background: rgba(12, 8, 6, .96);
+  border-top: 1px solid var(--borda);
+  scrollbar-width: thin;
+}
+.miniaturas.visivel { display: flex; }
+.miniaturas button {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  line-height: 0;
+  position: relative;
+}
+.miniaturas img { height: 108px; width: auto; display: block; border-radius: 6px; }
+.miniaturas button.atual { border-color: var(--acento); }
+.miniaturas button span {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  font-size: 10px;
+  color: #fff;
+  background: rgba(0, 0, 0, .6);
+  line-height: 16px;
+}
+
+/* -- toast --------------------------------------------------------------- */
+
+.aviso {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--barra-altura) + 20px);
+  transform: translate(-50%, 12px);
+  background: var(--acento);
+  color: #fff;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s, transform .2s;
+  z-index: 200;
+}
+.aviso.visivel { opacity: 1; transform: translate(-50%, 0); }
+
+/* -- phones -------------------------------------------------------------- */
+
+@media (max-width: 760px) {
+  .palco { padding: 12px 10px; }
+  .seta { display: none; }
+  .topo .selo, .topo .dica { display: none; }
+  .miniaturas img { height: 84px; }
+  .barra { gap: 2px; overflow-x: auto; justify-content: flex-start; }
+  .botao { width: 38px; height: 38px; flex: 0 0 auto; }
+  .contador { flex: 0 0 auto; }
+}
+
+@media (max-width: 420px) {
+  /* Not enough room for every control: first/last are reachable via the
+     thumbnails, so they are the ones that go. */
+  .barra [data-acao="primeira"], .barra [data-acao="ultima"] { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .livro, .folha { transition-duration: .01ms !important; }
+}
+
+@media print {
+  .topo, .barra, .miniaturas, .seta { display: none !important; }
+}
