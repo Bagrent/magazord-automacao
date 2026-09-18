@@ -225,3 +225,37 @@ def test_caminhos_de_apoio_voltam_com_o_marcador_id_e_nao_o_id_concreto():
 
     assert r.apoio["imagem"] == "/v2/site/produto/{id}/imagem"
     assert 'path: "/v2/site/produto/{id}/imagem"' in formatar_relatorio(r)
+
+
+# -- base URL normalisation -------------------------------------------------
+
+def test_base_com_versao_no_fim_nao_duplica_a_versao_no_caminho():
+    """`.../api/v2` + `/v2/site/produto` must not probe `/api/v2/v2/...`."""
+    with respx.mock(assert_all_called=False) as mock:
+        rota = mock.get(f"{RAIZ}/v2/site/produto").mock(
+            return_value=httpx.Response(200, json={"items": []})
+        )
+        mock.route().mock(return_value=httpx.Response(404))
+        with Descobridor(f"{RAIZ}/v2", "usuario", "token") as d:
+            r = d.executar()
+
+    assert rota.called
+    assert r.base_url == RAIZ
+    assert r.versao_removida == "v2"
+    assert r.autenticou is True
+
+
+def test_base_sem_versao_fica_intacta():
+    with Descobridor(f"{RAIZ}/", "usuario", "token") as d:
+        assert d.base_url == RAIZ
+        assert d.versao_removida == ""
+
+
+def test_normalizacao_nao_confunde_segmento_parecido_com_versao():
+    from magazord_automacao.descoberta import _normalizar_base
+
+    assert _normalizar_base("https://x/api/v2") == ("https://x/api", "v2")
+    assert _normalizar_base("https://x/api/v1/") == ("https://x/api", "v1")
+    assert _normalizar_base("https://x/api") == ("https://x/api", "")
+    # "vendas" starts with v but is not a version segment
+    assert _normalizar_base("https://x/vendas") == ("https://x/vendas", "")

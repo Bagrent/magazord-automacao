@@ -89,6 +89,7 @@ class Sonda:
 @dataclass
 class Resultado:
     base_url: str
+    versao_removida: str = ""
     autenticou: bool = False
     detalhe_auth: str = ""
     sondas: list[Sonda] = field(default_factory=list)
@@ -103,6 +104,7 @@ class Resultado:
     def para_dict(self) -> dict[str, Any]:
         return {
             "base_url": self.base_url,
+            "versao_removida": self.versao_removida,
             "autenticou": self.autenticou,
             "detalhe_auth": self.detalhe_auth,
             "caminho_produto": self.caminho_produto,
@@ -117,6 +119,21 @@ class Resultado:
                 for s in self.sondas
             ],
         }
+
+
+def _normalizar_base(base_url: str) -> tuple[str, str]:
+    """Strip a trailing version segment from the base URL.
+
+    The version belongs to the candidate paths, not the base: a base of
+    ``.../api/v2`` plus a candidate of ``/v2/site/produto`` would probe
+    ``/api/v2/v2/site/produto`` and find nothing. Both ``.../api`` and
+    ``.../api/v2`` are things people reasonably paste, so accept either.
+    """
+    limpa = base_url.strip().rstrip("/")
+    ultimo = limpa.rsplit("/", 1)[-1]
+    if len(ultimo) == 2 and ultimo[0] == "v" and ultimo[1].isdigit():
+        return limpa[: -(len(ultimo) + 1)], ultimo
+    return limpa, ""
 
 
 def _achatar(dados: Any, prefixo: str = "") -> dict[str, str]:
@@ -185,7 +202,7 @@ class Descobridor:
         timeout: float = 30.0,
         transport: httpx.BaseTransport | None = None,
     ):
-        self.base_url = base_url.rstrip("/")
+        self.base_url, self.versao_removida = _normalizar_base(base_url)
         self.usuario = usuario
         self.token = token
         credencial = base64.b64encode(f"{usuario}:{token}".encode()).decode()
@@ -236,7 +253,9 @@ class Descobridor:
 
     def executar(self) -> Resultado:
         """Run the full read-only discovery and return what was found."""
-        resultado = Resultado(base_url=self.base_url)
+        resultado = Resultado(
+            base_url=self.base_url, versao_removida=self.versao_removida
+        )
 
         # 1. Find a product path that answers, and the paging param it wants.
         for caminho in CAMINHOS_PRODUTO:
@@ -333,6 +352,8 @@ def formatar_relatorio(r: Resultado) -> str:
     add("DESCOBERTA DA API MAGAZORD")
     add("=" * 72)
     add(f"base_url: {r.base_url}")
+    if r.versao_removida:
+        add(f"  (o /{r.versao_removida} do fim foi removido — a versão entra no caminho, não na base)")
 
     if not r.autenticou:
         add("")
