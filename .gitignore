@@ -4,7 +4,16 @@ __pycache__/
 venv/
 *.egg-info/
 .pytest_cache/
+
+# Credentials. The bare "env" spelling is here because it has already been
+# committed by accident once: .gitignore only covered ".env", so a file
+# named "env" sailed straight past it.
 .env
+env
+*.env
+.env.*
+!.env.example
+
 /saida/
 /cache_imagens/
 /estado.sqlite3
