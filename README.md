@@ -6,6 +6,7 @@ run one command and the store is updated instead of registering products
 one at a time.
 
 ```bash
+magazord descobrir                          # read the live API, reveal its real contract
 magazord validar produtos.xlsx              # check the sheet, no network
 magazord enviar  produtos.xlsx              # dry run: builds every payload, sends nothing
 magazord enviar  produtos.xlsx --confirmar  # actually upload
@@ -13,28 +14,44 @@ magazord enviar  produtos.xlsx --confirmar  # actually upload
 
 ---
 
-## ⚠️ Before the first real upload: fill in the API spec
+## ⚠️ Before the first real upload: pin down the API contract
 
 `config/magazord.yaml` binds this project to the Magazord API. Every value in it
 marked `##VERIFICAR##` is a **placeholder that has not been checked against the
-official spec** — the machine this was written on could not reach
-`docs.api.magazord.com.br` (blocked by network policy), so the endpoint paths and
-payload field names are educated guesses, not facts.
+official spec** — the machines this was written on could not reach
+`docs.api.magazord.com.br` or `docs-v2.api.magazord.com.br` (blocked by network
+policy), so the endpoint paths and payload field names are educated guesses.
 
-**What is confirmed:** Magazord uses HTTP Basic Auth.
+**What is confirmed:** Magazord authenticates with HTTP Basic Auth (this is how
+Magazord's own [marketplace SDK](https://github.com/magazord-plataforma/marketplace-sdk)
+authenticates — `authenticateWithBasic($user, $password)`).
 **What is not:** every path, every JSON field name, and how images are attached.
 
-Open <https://docs.api.magazord.com.br/openapi.yaml>, then correct:
+You do not have to read the spec by hand. Point the tool at your own store and
+it will report the real contract:
 
-| Section in `config/magazord.yaml` | What to check |
-|---|---|
-| `endpoints.*.path` | The real paths for search / create / update / image |
-| `endpoints.buscar_produto` | The query param that looks a product up by SKU, and where the id sits in the response |
-| `campos` | The JSON key for each product field |
-| `imagens.modo` | Whether Magazord accepts an image **URL** or wants a **multipart upload** |
+```bash
+magazord descobrir
+```
 
-No Python changes are needed. That file is the only thing tying the pipeline to
-Magazord's contract — that is why it is a config file and not code.
+It sends **only GET requests** — running it against a production store cannot
+create, change or delete anything. It will:
+
+1. confirm your credentials work, and say precisely what is wrong if they don't
+   (wrong token vs. wrong base URL vs. no network — these fail differently);
+2. find which product path actually answers (`/v2/site/produto`, `/site/produto`, …);
+3. read a product **already registered in your store** and list the exact field
+   names Magazord uses for it — that existing product is the template for every
+   product you are about to upload;
+4. print a `config/magazord.yaml` block ready to paste in, and save the raw
+   findings to `saida/descoberta-<timestamp>.json`.
+
+If the store has no products yet, register **one** by hand in the panel first,
+then run `magazord descobrir`. One manual product buys you the whole spec.
+
+No Python changes are needed either way. `config/magazord.yaml` is the only
+thing tying the pipeline to Magazord's contract — that is why it is a config
+file and not code.
 
 Until it is filled in, `magazord validar` and `magazord enviar` (dry run) are
 fully usable: they exercise the spreadsheet reading, validation, image checking
@@ -160,7 +177,7 @@ Each run writes `saida/relatorio-<timestamp>.xlsx`:
 pytest
 ```
 
-56 tests run the whole pipeline against a mocked Magazord API — creating,
+75 tests run the whole pipeline against a mocked Magazord API — creating,
 updating, retrying, batching, idempotency and the CLI — with no network access
 and no credentials.
 
@@ -178,5 +195,6 @@ src/magazord_automacao/
   estado.py               what was uploaded, for incremental re-runs
   pipeline.py             batching, concurrency, dry run, error isolation
   relatorio.py            the .xlsx report
+  descoberta.py           read-only probe of a live store: paths + field names
   cli.py                  command line
 ```

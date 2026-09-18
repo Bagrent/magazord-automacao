@@ -5,6 +5,7 @@
     magazord enviar   produtos.xlsx      simula o envio (padrão seguro)
     magazord enviar   produtos.xlsx --confirmar    envia de verdade
     magazord estado                      mostra o que já foi enviado
+    magazord descobrir                   lê a API da loja e revela o contrato real
 """
 
 from __future__ import annotations
@@ -152,6 +153,38 @@ def cmd_estado(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_descobrir(args: argparse.Namespace) -> int:
+    from .descoberta import Descobridor, formatar_relatorio, salvar
+
+    carregar_dotenv()
+    base_url = os.environ.get("MAGAZORD_BASE_URL", "").strip()
+    usuario = os.environ.get("MAGAZORD_USER", "").strip()
+    token = os.environ.get("MAGAZORD_TOKEN", "").strip()
+    faltando = [
+        nome
+        for nome, valor in (
+            ("MAGAZORD_BASE_URL", base_url),
+            ("MAGAZORD_USER", usuario),
+            ("MAGAZORD_TOKEN", token),
+        )
+        if not valor
+    ]
+    if faltando:
+        raise ConfigInvalida(
+            f"{', '.join(faltando)} não definida(s). Copie .env.example para .env "
+            "e preencha antes de rodar a descoberta."
+        )
+
+    print(f"Sondando {base_url} — apenas leitura, nada é criado ou alterado.\n")
+    with Descobridor(base_url, usuario, token) as descobridor:
+        resultado = descobridor.executar()
+
+    print(formatar_relatorio(resultado))
+    destino = salvar(resultado, Path(args.saida))
+    print(f"\nDados brutos salvos em {destino}")
+    return 0 if resultado.autenticou else 1
+
+
 # -- argument parsing -------------------------------------------------------
 
 def construir_parser() -> argparse.ArgumentParser:
@@ -199,6 +232,14 @@ def construir_parser() -> argparse.ArgumentParser:
     s.add_argument("--esquecer", metavar="SKU",
                    help="remove um SKU do estado para forçar o reenvio")
     s.set_defaults(func=cmd_estado)
+
+    d = sub.add_parser(
+        "descobrir",
+        help="consulta a API da loja e mostra os caminhos e campos reais (só leitura)",
+    )
+    d.add_argument("--saida", default="saida",
+                   help="pasta onde salvar o JSON da descoberta (padrão: saida)")
+    d.set_defaults(func=cmd_descobrir)
 
     return p
 
